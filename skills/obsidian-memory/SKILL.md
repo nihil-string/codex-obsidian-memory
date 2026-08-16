@@ -149,7 +149,7 @@ node "<skill-dir>\scripts\memory-cli.cjs" capture `
 - `maintain` 会先对当前 `memory_summary.md` 与 `MEMORY.md` 生成整体 SHA-256 指纹，再逐条检查已记录的 `absent/extends/corrects` 关系。关系仍一致时才刷新 `native_memory_checked_at` 与 `native_memory_fingerprint`；冲突时保留旧关系、报告具体笔记并使活跃笔记检索 fail closed。
 - `migrate-schema` 默认只预览；`--apply` 对旧笔记增加 `source_kind: legacy-unspecified` 与 `capture_method: legacy`，不伪造可信来源。
 - `lifecycle-set` 与 `revoke` 默认只预演；必须使用 `--confirm <memory_id>` 才会修改。撤销会保留正文并移入 `Archive/Revoked/`。
-- `hard-delete` 默认只预演，并列出当前 Vault、引用和受管备份中的影响范围。确认后只删除精确 `memory_id`，拒绝仍有持久引用的目标，清理受管版本化备份，并只留下不可逆 ID/reason 哈希审计；它不能证明外部同步、未登记备份或其他设备已清除。
+- `hard-delete` 默认只预演，并列出当前 Vault、引用和受管备份中的影响范围。确认后只删除精确 `memory_id`；引用检测覆盖 memory ID、路径、文件名、一级标题、aliases、heading/block wikilink 与 Markdown 路径链接，发现任一种就拒绝；随后清理受管版本化备份，并只留下不可逆 ID/reason 哈希审计。它不能证明外部同步、未登记备份或其他设备已清除。
 - `backup` 把版本化快照写到 Vault 外部的 `%USERPROFILE%\.codex\backups\obsidian-memory`，逐文件记录 SHA-256；命中秘密规则的非 Markdown 配置不会复制。`restore-test` 只恢复到临时隔离目录，重建派生索引，并重新运行 validator 与 benchmark，绝不覆盖生产 Vault。
 
 缺少游戏实机或完整端到端验证时，必须缩小结论层级和 `boundary`，但这不妨碍保存已由源码、构建或自动测试支持的候选。自动测试可以证明相应代码契约或回归结果，不能外推为实机行为已验证。

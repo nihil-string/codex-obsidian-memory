@@ -345,11 +345,82 @@ function listSnapshotPaths(backupRoot) {
     .sort();
 }
 
-function inspectMemoryInBackups(backupRoot, memoryId) {
+function normalizedReferenceToken(value) {
+  return normalizeRelative(String(value || '').trim())
+    .replace(/^\.\//, '')
+    .replace(/\.md$/i, '')
+    .toLocaleLowerCase();
+}
+
+function targetReferenceTokens(target) {
+  const tokens = new Set();
+  const add = (value) => {
+    const normalized = normalizedReferenceToken(value);
+    if (normalized) {
+      tokens.add(normalized);
+      tokens.add(path.posix.basename(normalized));
+    }
+  };
+  add(target.relativePath);
+  add(String(target.relativePath || '').replace(/\.md$/i, ''));
+  const heading = String(target.content || '').match(/^#\s+(.+?)\s*$/m);
+  if (heading) {
+    add(heading[1]);
+  }
+  for (const field of ['alias', 'aliases']) {
+    const raw = target.frontmatter?.data?.[field];
+    for (const value of Array.isArray(raw) ? raw : [raw]) {
+      add(value);
+    }
+  }
+  return tokens;
+}
+
+function contentReferencesTarget(content, target, referenceRelativePath = '') {
+  const memoryId = String(target.frontmatter?.data?.memory_id || '').trim();
+  if (memoryId && content.includes(memoryId)) {
+    return true;
+  }
+  const tokens = targetReferenceTokens(target);
+  for (const match of content.matchAll(/\[\[([^\]]+)\]\]/g)) {
+    const linkTarget = match[1].split('|', 1)[0].split('#', 1)[0].trim();
+    const normalized = normalizedReferenceToken(linkTarget);
+    if (tokens.has(normalized) || tokens.has(path.posix.basename(normalized))) {
+      return true;
+    }
+  }
+  for (const match of content.matchAll(/\]\(([^)]+)\)/g)) {
+    let linkTarget = match[1].trim().replace(/^<|>$/g, '');
+    if (/^[a-z][a-z0-9+.-]*:/i.test(linkTarget)) {
+      continue;
+    }
+    linkTarget = linkTarget.split('#', 1)[0].split('?', 1)[0];
+    try {
+      linkTarget = decodeURIComponent(linkTarget);
+    } catch (_) {
+      // Keep the raw path when it contains malformed percent encoding.
+    }
+    const referenceDir = path.posix.dirname(normalizeRelative(referenceRelativePath));
+    const resolved = normalizedReferenceToken(path.posix.normalize(path.posix.join(referenceDir, linkTarget)));
+    const direct = normalizedReferenceToken(linkTarget);
+    if (
+      tokens.has(resolved)
+      || tokens.has(path.posix.basename(resolved))
+      || tokens.has(direct)
+      || tokens.has(path.posix.basename(direct))
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function inspectMemoryInBackups(backupRoot, memoryId, currentTarget = null) {
   const occurrences = [];
   const references = [];
   for (const snapshotPath of listSnapshotPaths(backupRoot)) {
     const { manifest } = readManifest(snapshotPath);
+    const documents = [];
     for (const entry of manifest.files || []) {
       if (path.extname(entry.path).toLowerCase() !== '.md') {
         continue;
@@ -360,19 +431,40 @@ function inspectMemoryInBackups(backupRoot, memoryId) {
       }
       const content = core.readUtf8(filePath);
       const frontmatter = core.parseFrontmatter(content);
-      if (String(frontmatter.data.memory_id || '') === memoryId) {
-        occurrences.push({ snapshotPath, relativePath: entry.path });
-      } else if (content.includes(memoryId)) {
-        references.push({ snapshotPath, relativePath: entry.path });
+      documents.push({
+        filePath,
+        relativePath: entry.path,
+        content,
+        frontmatter,
+      });
+    }
+    const snapshotTargets = documents.filter(
+      (document) => String(document.frontmatter.data.memory_id || '') === memoryId,
+    );
+    for (const target of snapshotTargets) {
+      occurrences.push({ snapshotPath, relativePath: target.relativePath });
+    }
+    const referenceTargets = snapshotTargets.length > 0
+      ? snapshotTargets
+      : (currentTarget ? [currentTarget] : []);
+    const targetPaths = new Set(snapshotTargets.map((target) => normalizeRelative(target.relativePath)));
+    for (const document of documents) {
+      if (targetPaths.has(normalizeRelative(document.relativePath))) {
+        continue;
+      }
+      if (referenceTargets.some(
+        (target) => contentReferencesTarget(document.content, target, document.relativePath),
+      )) {
+        references.push({ snapshotPath, relativePath: document.relativePath });
       }
     }
   }
   return { occurrences, references };
 }
 
-function purgeMemoryFromBackups(backupRoot, memoryId) {
+function purgeMemoryFromBackups(backupRoot, memoryId, target = null) {
   const root = resolveBackupRoot(backupRoot);
-  const inspected = inspectMemoryInBackups(root, memoryId);
+  const inspected = inspectMemoryInBackups(root, memoryId, target);
   if (inspected.references.length > 0) {
     throw new Error(
       `backup notes still reference memory_id '${memoryId}': ${inspected.references.map((item) => item.relativePath).join(', ')}`,
@@ -417,7 +509,6 @@ function purgeMemoryFromBackups(backupRoot, memoryId) {
 }
 
 function currentVaultReferences(vault, target) {
-  const targetLink = normalizeRelative(target.relativePath).replace(/\.md$/i, '');
   const references = [];
   for (const filePath of core.walkMarkdown(vault, { includeArchive: true })) {
     if (path.resolve(filePath) === path.resolve(target.filePath)) {
@@ -428,7 +519,7 @@ function currentVaultReferences(vault, target) {
       continue;
     }
     const content = core.readUtf8(filePath);
-    if (content.includes(target.frontmatter.data.memory_id) || content.includes(`[[${targetLink}`)) {
+    if (contentReferencesTarget(content, target, relativePath)) {
       references.push(relativePath);
     }
   }
@@ -448,7 +539,7 @@ function hardDeleteMemory(options = {}) {
   }
   const target = core.findMemoryById(vault, memoryId);
   const references = currentVaultReferences(vault, target);
-  const backupInspection = inspectMemoryInBackups(backupRoot, memoryId);
+  const backupInspection = inspectMemoryInBackups(backupRoot, memoryId, target);
   const preview = {
     applied: false,
     dryRun: true,
@@ -465,7 +556,7 @@ function hardDeleteMemory(options = {}) {
   if (references.length > 0 || backupInspection.references.length > 0) {
     throw new Error('hard-delete refused because other durable notes still reference the target');
   }
-  const backupPurge = purgeMemoryFromBackups(backupRoot, memoryId);
+  const backupPurge = purgeMemoryFromBackups(backupRoot, memoryId, target);
   fs.unlinkSync(target.filePath);
   const auditPath = path.join(vault, 'Meta', 'HARD_DELETE_AUDIT.jsonl');
   fs.appendFileSync(auditPath, `${JSON.stringify({
@@ -482,7 +573,7 @@ function hardDeleteMemory(options = {}) {
   } catch (_) {
     stillPresent = false;
   }
-  const remainingBackup = inspectMemoryInBackups(backupRoot, memoryId);
+  const remainingBackup = inspectMemoryInBackups(backupRoot, memoryId, target);
   if (stillPresent || remainingBackup.occurrences.length > 0 || remainingBackup.references.length > 0) {
     throw new Error('hard-delete postcondition failed: target remains in current Vault or managed backups');
   }

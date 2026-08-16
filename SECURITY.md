@@ -35,7 +35,8 @@ silently reclassified.
 ## Deletion and backup boundary
 
 Revocation preserves audit history and is not privacy deletion. `hard-delete`
-uses an exact memory ID, defaults to a dry run, refuses durable references,
+uses an exact memory ID, defaults to a dry run, refuses detected memory-ID,
+path, basename, title, alias, heading/block, and Markdown-link references,
 purges managed versioned backups, rebuilds derived artifacts, and stores only
 irreversible identifier and reason hashes in its audit log. It cannot purge
 unmanaged sync services, copied archives, remote devices, or backups outside

@@ -14,6 +14,16 @@ function assert(condition, message) {
   }
 }
 
+function assertThrows(fn, pattern, message) {
+  let thrown = null;
+  try {
+    fn();
+  } catch (error) {
+    thrown = error;
+  }
+  assert(thrown && pattern.test(String(thrown.message || thrown)), message);
+}
+
 function writeCoreFiles(vault) {
   for (const relativePath of core.CORE_FILES) {
     let content = `# ${path.basename(relativePath, '.md')}\n`;
@@ -113,7 +123,10 @@ function main() {
         nativeFingerprint,
         title: 'Hard Delete Violet Contract',
         conclusion: 'The violet-hard-delete-sentinel exists only to prove current and managed backup purging.',
-      }),
+      }).replace(
+        'capture_method: manual\n',
+        'capture_method: manual\naliases:\n  - Violet Privacy Contract\n',
+      ),
     );
     core.writeUtf8Atomic(
       path.join(vault, 'Meta', 'retrieval-benchmark.json'),
@@ -261,6 +274,49 @@ function main() {
     const restored = backup.restoreTest({ snapshotPath: snapshot.snapshotPath, memoryRoot });
     assert(restored.ok && restored.isolated, 'isolated restore test failed');
 
+    const aliasReferencePath = path.join(vault, 'Inbox', 'hard-delete-alias-reference.md');
+    core.writeUtf8Atomic(
+      aliasReferencePath,
+      noteContent({
+        memoryId: 'governance-hard-delete-alias-reference',
+        projectRoot,
+        nativeFingerprint: core.builtInMemorySnapshot(memoryRoot).fingerprint,
+        title: 'Hard Delete Alias Reference',
+        conclusion: 'This note retains [[Violet Privacy Contract#^retention-block]] as an alias and block reference.',
+      }),
+    );
+    const aliasReferenceSnapshot = backup.createBackup({ vault, memoryRoot, backupRoot });
+    assertThrows(
+      () => backup.hardDeleteMemory({
+        vault,
+        memoryRoot,
+        backupRoot,
+        memoryId: 'governance-hard-delete',
+        reason: 'self-test privacy deletion',
+        confirm: 'governance-hard-delete',
+      }),
+      /durable notes still reference/,
+      'hard-delete did not refuse an alias/block reference',
+    );
+    fs.unlinkSync(aliasReferencePath);
+    assertThrows(
+      () => backup.hardDeleteMemory({
+        vault,
+        memoryRoot,
+        backupRoot,
+        memoryId: 'governance-hard-delete',
+        reason: 'self-test privacy deletion',
+        confirm: 'governance-hard-delete',
+      }),
+      /durable notes still reference/,
+      'hard-delete did not refuse an alias/block reference retained by a managed backup',
+    );
+    assert(
+      aliasReferenceSnapshot.snapshotPath.startsWith(path.resolve(backupRoot) + path.sep),
+      'self-test backup cleanup escaped the temporary backup root',
+    );
+    fs.rmSync(aliasReferenceSnapshot.snapshotPath, { recursive: true, force: true });
+
     const deletePreview = backup.hardDeleteMemory({
       vault,
       memoryRoot,
@@ -285,6 +341,24 @@ function main() {
     const restoredAfterPurge = backup.restoreTest({ snapshotPath: snapshot.snapshotPath, memoryRoot });
     assert(restoredAfterPurge.ok, 'backup restore failed after privacy purge');
 
+    const linkTarget = fs.mkdtempSync(path.join(os.tmpdir(), 'obsidian-memory-governance-link-target-'));
+    const linkPath = path.join(vault, '.junction-probe');
+    try {
+      fs.symlinkSync(linkTarget, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
+      assertThrows(
+        () => backup.createBackup({ vault, memoryRoot, backupRoot }),
+        /refuses symbolic link or junction/,
+        'backup did not refuse a symbolic link or Windows junction',
+      );
+    } finally {
+      if (fs.existsSync(linkPath)) {
+        fs.unlinkSync(linkPath);
+      }
+      if (linkTarget.startsWith(path.join(os.tmpdir(), 'obsidian-memory-governance-link-target-'))) {
+        fs.rmSync(linkTarget, { recursive: true, force: true });
+      }
+    }
+
     process.stdout.write(`${JSON.stringify({
       ok: true,
       nativeMemoryDriftFailsClosed: true,
@@ -292,7 +366,9 @@ function main() {
       expiredDefaultExcluded: true,
       reviewAfterLabelled: true,
       revokedDefaultExcluded: true,
+      hardDeleteAliasAndBackupReferencesRefused: true,
       hardDeleteDryRunAndBackupPurge: true,
+      backupSymlinkOrJunctionRefused: true,
       isolatedRestoreVerified: true,
     }, null, 2)}\n`);
   } finally {
