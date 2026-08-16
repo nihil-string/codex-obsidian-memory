@@ -1,0 +1,61 @@
+{
+  "description": "Retrieve and maintain scoped, non-duplicate multi-project Obsidian knowledge.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$PLUGIN_ROOT/skills/obsidian-memory/scripts/memory-hook.cjs\" session-start",
+            "commandWindows": "node.exe \"%PLUGIN_ROOT%\\skills\\obsidian-memory\\scripts\\memory-hook.cjs\" session-start",
+            "timeout": 8,
+            "statusMessage": "加载长期记忆规则",
+            "additionalContextLimit": 1200
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$PLUGIN_ROOT/skills/obsidian-memory/scripts/memory-hook.cjs\" user-prompt",
+            "commandWindows": "node.exe \"%PLUGIN_ROOT%\\skills\\obsidian-memory\\scripts\\memory-hook.cjs\" user-prompt",
+            "timeout": 10,
+            "statusMessage": "检索相关长期记忆",
+            "additionalContextLimit": 3000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$PLUGIN_ROOT/skills/obsidian-memory/scripts/memory-hook.cjs\" stop",
+            "commandWindows": "node.exe \"%PLUGIN_ROOT%\\skills\\obsidian-memory\\scripts\\memory-hook.cjs\" stop",
+            "timeout": 8,
+            "statusMessage": "检查是否需要更新长期记忆"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "other",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$PLUGIN_ROOT/skills/obsidian-memory/scripts/memory-hook.cjs\" session-end",
+            "commandWindows": "node.exe \"%PLUGIN_ROOT%\\skills\\obsidian-memory\\scripts\\memory-hook.cjs\" session-end",
+            "timeout": 3,
+            "statusMessage": "维护长期记忆索引"
+          }
+        ]
+      }
+    ]
+  }
+}

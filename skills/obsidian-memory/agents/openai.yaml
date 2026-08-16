@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian 多项目记忆"
+  short_description: "检索并维护与原生记忆去重的多项目知识库"
+  default_prompt: "Use $obsidian-memory to retrieve scope-matched knowledge and maintain only bounded, non-duplicate additions to Codex built-in memory."
+policy:
+  allow_implicit_invocation: true
