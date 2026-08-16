@@ -23,6 +23,14 @@ keys, caches, backups, or generated indexes.
 - New notes are checked against Codex built-in memory and the Vault to avoid
   duplicate or conflicting permanent records.
 - Deprecated and archived records are excluded from normal retrieval.
+- Revoked and expired records are excluded deterministically; overdue review
+  dates remain visible with an explicit freshness label.
+- Built-in memory is fingerprinted and continuously reconciled. A changed
+  native baseline makes unreconciled active notes fail closed instead of
+  silently trusting capture-time checks.
+- Structured `source_kind` and `capture_method` fields produce a dynamic
+  `effective_trust`; legacy notes migrate conservatively without invented
+  provenance.
 - Every model-visible CLI and Hook retrieval carries the same data-only and
   action-deny boundary. Secret-like material is rejected on capture and
   validation and redacted from both plain-text and JSON retrieval results.
@@ -62,6 +70,7 @@ Equivalent direct commands:
 node skills/obsidian-memory/scripts/memory-cli.cjs self-test
 node skills/obsidian-memory/scripts/memory-cli-selftest.cjs
 node skills/obsidian-memory/scripts/memory-hook-selftest.cjs
+node skills/obsidian-memory/scripts/memory-governance-selftest.cjs
 ```
 
 To validate a real Vault without modifying it:
@@ -71,6 +80,31 @@ node skills/obsidian-memory/scripts/memory-cli.cjs validate --vault "F:\Obsidian
 ```
 
 The self-tests use temporary synthetic Vaults and remove them after completion.
+
+## Governance and recovery commands
+
+```powershell
+# Preview, then migrate legacy provenance fields.
+node skills/obsidian-memory/scripts/memory-cli.cjs migrate-schema
+node skills/obsidian-memory/scripts/memory-cli.cjs migrate-schema --apply
+
+# Reconcile every active note against both Codex built-in memory files.
+node skills/obsidian-memory/scripts/memory-cli.cjs reconcile-native --apply
+
+# Revocation is reversible history; hard-delete is explicit privacy deletion.
+node skills/obsidian-memory/scripts/memory-cli.cjs revoke --memory-id ID --reason TEXT
+node skills/obsidian-memory/scripts/memory-cli.cjs hard-delete --memory-id ID --reason TEXT
+
+# Create a versioned external snapshot and prove recovery in isolation.
+node skills/obsidian-memory/scripts/memory-cli.cjs backup
+node skills/obsidian-memory/scripts/memory-cli.cjs restore-test --snapshot PATH
+```
+
+Mutation commands show a dry run unless the exact memory ID is repeated with
+`--confirm`. Backup snapshots use per-file SHA-256 manifests and exclude
+secret-bearing non-Markdown configuration. Restore tests never overwrite the
+production Vault. Re-downloadable `.tools` binaries, generated indexes, Git
+metadata, trash, and dependency caches are excluded from the recovery set.
 
 ## Installation status
 
