@@ -16,15 +16,17 @@ actual plugin implementation instead of relying on screenshots or summaries.
    - Inspect `scopeAllowsContext`, project path normalization, explicit project
      matching, cross-project thresholds, and archive handling.
 3. Built-in memory reconciliation
-   - Capture performs a novelty check. Continuous rechecking after built-in
-     memory changes is not implemented yet.
+   - Inspect whole-baseline fingerprinting, per-note relation checks, conflict
+     reporting, stale-note retrieval exclusion, and conservative relation
+     review. Reconciliation must never invent `extends` or `corrects`.
 4. Lifecycle
-   - Candidate, current, verified, deprecated, and archived states exist.
-     Deterministic expiry, no-replacement revocation, and privacy hard-delete
-     workflows are not implemented yet.
+   - Inspect deterministic `valid_until`, advisory `review_after`, `revoked`
+     archive movement, confirmation gates, reference refusal, managed-backup
+     purge, hash-only audit, and postconditions for privacy hard-delete.
 5. Provenance
-   - `source` is currently free-form. Structured `source_kind` or
-     `capture_method` and dynamically computed trust are open design questions.
+   - Inspect required `source_kind` and `capture_method`, conservative legacy
+     migration, and dynamically computed `effective_trust`. Legacy provenance
+     must never be upgraded by filename or free-text inference.
 6. Secret handling
    - Inspect pattern coverage, false positives, and structured-value redaction
      before adding provider-specific patterns.
@@ -35,6 +37,11 @@ actual plugin implementation instead of relying on screenshots or summaries.
    - Hook scripts and self-tests are present, but a previously tested Windows
      Codex Desktop build did not dispatch `UserPromptSubmit`. The explicit skill
      workflow remains the observed production fallback.
+9. Backup and recovery
+   - Inspect path containment, symlink refusal, secret-bearing configuration
+     exclusion, per-file manifest verification, isolated restoration, derived
+     index reconstruction, and benchmark execution. The backup is local and
+     not encrypted by the plugin.
 
 ## Known non-goals
 
@@ -49,6 +56,8 @@ actual plugin implementation instead of relying on screenshots or summaries.
 npm test
 node skills/obsidian-memory/scripts/memory-cli.cjs status
 node skills/obsidian-memory/scripts/memory-cli.cjs validate
+node skills/obsidian-memory/scripts/memory-cli.cjs reconcile-native
+node skills/obsidian-memory/scripts/memory-governance-selftest.cjs
 ```
 
 Please report findings with the exact file, line, violated invariant, and a

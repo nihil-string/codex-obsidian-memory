@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 
-const path = require('path');
 const core = require('./memory-core.cjs');
+const backup = require('./memory-backup.cjs');
 
 function parseArgs(argv) {
   const options = { _: [] };
@@ -61,110 +61,23 @@ function printReport(report) {
   ].join('\n'));
 }
 
-function normalizeBenchmarkPath(value) {
-  return String(value || '').replace(/\\/g, '/').toLocaleLowerCase();
-}
-
-function runBenchmark(options = {}) {
-  const vault = core.resolveVault(options.vault);
-  const casesPath = path.resolve(
-    options.cases || path.join(vault, 'Meta', 'retrieval-benchmark.json'),
-  );
-  const fixture = core.validateBenchmarkFixture(vault, casesPath);
-  if (!fixture.exists) {
-    throw new Error(`benchmark cases file does not exist: ${casesPath}`);
-  }
-  if (fixture.errors.length > 0) {
-    throw new Error(
-      `benchmark fixture is invalid:\n${fixture.errors.map((error) => `- ${error}`).join('\n')}`,
-    );
-  }
-  const document = fixture.document;
-  const overrideLimit = Number(options.limit);
-  const caseResults = document.cases.map((testCase, index) => {
-    const id = String(testCase.id || `case-${index + 1}`);
-    const query = String(testCase.query || '').trim();
-    if (!query) {
-      throw new Error(`benchmark case '${id}' is missing query`);
-    }
-    const limit = Number.isFinite(overrideLimit) && overrideLimit > 0
-      ? Math.floor(overrideLimit)
-      : Number(testCase.limit) || 3;
-    const results = core.searchMemory({
-      vault,
-      query,
-      cwd: testCase.cwd,
-      limit,
-      includeArchive: Boolean(testCase.include_archive),
-      includeAllProjects: Boolean(testCase.include_all_projects),
-    });
-    const returnedPaths = results.map((result) => normalizeBenchmarkPath(result.relativePath));
-    const relevantPaths = (testCase.relevant_paths || []).map(normalizeBenchmarkPath);
-    const requiredPaths = (testCase.required_paths || testCase.relevant_paths || [])
-      .map(normalizeBenchmarkPath);
-    const forbiddenPaths = (testCase.forbidden_paths || []).map(normalizeBenchmarkPath);
-    const relevantHits = returnedPaths.filter((item) => relevantPaths.includes(item));
-    const forbiddenHits = returnedPaths.filter((item) => forbiddenPaths.includes(item));
-    const firstRelevantIndex = returnedPaths.findIndex((item) => relevantPaths.includes(item));
-    const expectNoHit = Boolean(testCase.expect_no_hit);
-    const requiredPresent = requiredPaths.every((item) => returnedPaths.includes(item));
-    const passed = expectNoHit
-      ? returnedPaths.length === 0
-      : requiredPresent && forbiddenHits.length === 0;
-    return {
-      id,
-      passed,
-      query,
-      cwd: String(testCase.cwd || ''),
-      limit,
-      includeArchive: Boolean(testCase.include_archive),
-      expectNoHit,
-      returnedPaths: results.map((result) => result.relativePath.replace(/\\/g, '/')),
-      requiredPresent,
-      relevantHits: relevantHits.length,
-      relevantTotal: relevantPaths.length,
-      precision: relevantPaths.length === 0
-        ? null
-        : relevantHits.length / Math.max(returnedPaths.length, 1),
-      recall: relevantPaths.length === 0
-        ? null
-        : relevantHits.length / relevantPaths.length,
-      reciprocalRank: firstRelevantIndex === -1 ? 0 : 1 / (firstRelevantIndex + 1),
-      forbiddenHits,
-    };
-  });
-  const relevanceCases = caseResults.filter((item) => item.relevantTotal > 0);
-  const noHitCases = caseResults.filter((item) => item.expectNoHit);
-  const average = (items, selector) => (
-    items.length === 0
-      ? null
-      : items.reduce((total, item) => total + selector(item), 0) / items.length
-  );
-  return {
-    version: document.version || 1,
-    casesPath,
-    generatedAt: new Date().toISOString(),
-    totalCases: caseResults.length,
-    passedCases: caseResults.filter((item) => item.passed).length,
-    passRate: caseResults.filter((item) => item.passed).length / caseResults.length,
-    precisionAtK: average(relevanceCases, (item) => item.precision),
-    recallAtK: average(relevanceCases, (item) => item.recall),
-    mrr: average(relevanceCases, (item) => item.reciprocalRank),
-    noHitAccuracy: average(noHitCases, (item) => (item.passed ? 1 : 0)),
-    forbiddenHitCases: caseResults.filter((item) => item.forbiddenHits.length > 0).length,
-    cases: caseResults,
-  };
-}
-
 function showHelp() {
   process.stdout.write(`Obsidian scoped multi-project memory CLI
 
 Usage:
   memory-cli.cjs status [--vault PATH] [--builtin-memory PATH] [--json]
-  memory-cli.cjs search --query TEXT [--cwd PATH] [--limit N] [--include-archive] [--include-core] [--all-projects] [--vault PATH] [--json]
+  memory-cli.cjs search --query TEXT [--cwd PATH] [--limit N] [--include-archive] [--include-expired] [--include-stale-native] [--include-core] [--all-projects] [--vault PATH] [--json]
   memory-cli.cjs benchmark [--cases PATH] [--limit N] [--vault PATH] [--json]
   memory-cli.cjs novelty-check --text TEXT [--cwd PATH] [--builtin-memory PATH] [--vault PATH] [--json]
-  memory-cli.cjs capture --title TEXT --summary TEXT --source TEXT --scope TEXT --scope-kind project|cross-project --applies-to a,b --boundary TEXT [--transferability TEXT] [--origin-projects a,b] [--native-memory-relation absent|extends|corrects] [--evidence TEXT] [--tags a,b] [--builtin-memory PATH] [--vault PATH] [--json]
+  memory-cli.cjs capture --title TEXT --summary TEXT --source TEXT --source-kind KIND --scope TEXT --scope-kind project|cross-project --applies-to a,b --boundary TEXT [--capture-method METHOD] [--transferability TEXT] [--origin-projects a,b] [--native-memory-relation absent|extends|corrects] [--evidence TEXT] [--valid-until YYYY-MM-DD] [--review-after YYYY-MM-DD] [--tags a,b] [--builtin-memory PATH] [--vault PATH] [--json]
+  memory-cli.cjs migrate-schema [--apply] [--vault PATH] [--json]
+  memory-cli.cjs reconcile-native [--apply] [--builtin-memory PATH] [--vault PATH] [--json]
+  memory-cli.cjs lifecycle-set --memory-id ID [--valid-until YYYY-MM-DD] [--review-after YYYY-MM-DD] [--confirm ID] [--vault PATH] [--json]
+  memory-cli.cjs revoke --memory-id ID --reason TEXT [--confirm ID] [--vault PATH] [--json]
+  memory-cli.cjs backup [--backup-root PATH] [--allow-legacy-schema] [--vault PATH] [--builtin-memory PATH] [--json]
+  memory-cli.cjs verify-backup --snapshot PATH [--json]
+  memory-cli.cjs restore-test --snapshot PATH [--builtin-memory PATH] [--json]
+  memory-cli.cjs hard-delete --memory-id ID --reason TEXT [--confirm ID] [--backup-root PATH] [--vault PATH] [--json]
   memory-cli.cjs validate [--vault PATH] [--builtin-memory PATH] [--json]
   memory-cli.cjs rebuild-index [--vault PATH] [--json]
   memory-cli.cjs maintain [--vault PATH] [--builtin-memory PATH] [--json]
@@ -206,10 +119,13 @@ function main() {
       }
       const results = core.searchMemory({
         vault,
+        memoryRoot,
         query,
         cwd: options.cwd,
         limit: options.limit,
         includeArchive: Boolean(options['include-archive']),
+        includeExpired: Boolean(options['include-expired']),
+        includeStaleNative: Boolean(options['include-stale-native']),
         includeCore: Boolean(options['include-core']),
         includeAllProjects: Boolean(options['all-projects']),
       });
@@ -222,8 +138,9 @@ function main() {
     }
 
     case 'benchmark': {
-      const result = runBenchmark({
+      const result = core.runBenchmark({
         vault,
+        memoryRoot,
         cases: options.cases,
         limit: options.limit,
       });
@@ -269,6 +186,7 @@ function main() {
           text,
           nativeMemory: result.nativeMemory,
           vaultMatches: result.vaultMatches,
+          retrievalPolicy: core.AGENT_SAFE_RETRIEVAL_POLICY,
           trustBoundary: core.AGENT_SAFE_RETRIEVAL_BOUNDARY,
         }));
       } else {
@@ -298,6 +216,8 @@ function main() {
         title: options.title,
         summary: options.summary,
         source: options.source,
+        sourceKind: options['source-kind'],
+        captureMethod: options['capture-method'],
         scope: options.scope,
         scopeKind: options['scope-kind'],
         appliesTo: options['applies-to'],
@@ -306,6 +226,8 @@ function main() {
         originProjects: options['origin-projects'],
         nativeMemoryRelation: options['native-memory-relation'],
         evidence: options.evidence,
+        validUntil: options['valid-until'],
+        reviewAfter: options['review-after'],
         tags: options.tags,
       });
       if (asJson) {
@@ -323,6 +245,150 @@ function main() {
           '',
         ].join('\n'));
         process.exitCode = 1;
+      }
+      return;
+    }
+
+    case 'migrate-schema': {
+      const result = core.migrateVaultSchema(vault, { apply: Boolean(options.apply) });
+      if (asJson) {
+        printJson(result);
+      } else {
+        process.stdout.write([
+          `Schema migration: ${result.apply ? 'APPLIED' : 'DRY RUN'}`,
+          `Changed notes: ${result.changedNotes}`,
+          ...result.changes.map((item) => `- ${item.relativePath}: ${Object.keys(item.updates).join(', ')}`),
+          result.apply ? '' : 'Run again with --apply after reviewing the paths above.',
+          '',
+        ].join('\n'));
+      }
+      return;
+    }
+
+    case 'reconcile-native': {
+      const result = core.reconcileNativeMemory(vault, {
+        memoryRoot,
+        apply: Boolean(options.apply),
+        writeReport: true,
+      });
+      if (asJson) {
+        printJson(result);
+      } else {
+        process.stdout.write([
+          `Native reconcile: ${result.ok ? 'OK' : 'REVIEW REQUIRED'}`,
+          `Mode: ${result.applied ? 'APPLIED' : 'DRY RUN'}`,
+          `Fingerprint: ${result.nativeMemoryFingerprint || 'unavailable'}`,
+          `Notes checked: ${result.notesChecked}`,
+          `Notes updated: ${result.updatedNotes}`,
+          `Conflicts: ${result.conflicts.length}`,
+          ...result.conflicts.map(
+            (item) => `- ${item.relativePath}: recorded=${item.recordedRelation}, duplicate=${item.observedLikelyDuplicate}, coverage=${item.observedTermCoverage}`,
+          ),
+          `Report: ${result.reportPath || 'not-written'}`,
+          '',
+        ].join('\n'));
+      }
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+      return;
+    }
+
+    case 'lifecycle-set': {
+      const result = core.setMemoryLifecycle(vault, {
+        memoryId: options['memory-id'],
+        validUntil: options['valid-until'],
+        reviewAfter: options['review-after'],
+        confirm: options.confirm,
+        memoryRoot,
+      });
+      if (asJson) {
+        printJson(result);
+      } else {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      }
+      return;
+    }
+
+    case 'revoke': {
+      const result = core.revokeMemory(vault, {
+        memoryId: options['memory-id'],
+        reason: options.reason,
+        confirm: options.confirm,
+        memoryRoot,
+      });
+      if (asJson) {
+        printJson(result);
+      } else {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      }
+      return;
+    }
+
+    case 'backup': {
+      const result = backup.createBackup({
+        vault,
+        memoryRoot,
+        backupRoot: options['backup-root'],
+        allowLegacySchema: Boolean(options['allow-legacy-schema']),
+      });
+      if (asJson) {
+        printJson(result);
+      } else {
+        process.stdout.write([
+          `Backup: ${result.verification.ok ? 'VERIFIED' : 'FAILED'}`,
+          `Snapshot: ${result.snapshotPath}`,
+          `Files copied: ${result.filesCopied}`,
+          `Sensitive config files excluded: ${result.excludedSensitive.length}`,
+          `Fingerprint: ${result.contentFingerprint}`,
+          '',
+        ].join('\n'));
+      }
+      return;
+    }
+
+    case 'verify-backup': {
+      const result = backup.verifyBackup(options.snapshot);
+      if (asJson) {
+        printJson(result);
+      } else {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      }
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+      return;
+    }
+
+    case 'restore-test': {
+      const result = backup.restoreTest({
+        snapshotPath: options.snapshot,
+        memoryRoot,
+      });
+      if (asJson) {
+        printJson(result);
+      } else {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      }
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+      return;
+    }
+
+    case 'hard-delete': {
+      const result = backup.hardDeleteMemory({
+        vault,
+        memoryRoot,
+        backupRoot: options['backup-root'],
+        memoryId: options['memory-id'],
+        reason: options.reason,
+        confirm: options.confirm,
+      });
+      if (asJson) {
+        printJson(result);
+      } else {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
       }
       return;
     }

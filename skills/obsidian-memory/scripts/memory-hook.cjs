@@ -210,6 +210,8 @@ function handleStop(input) {
       '必须遵守的规则仍写入适用层级的 AGENTS.md 或项目文档，Obsidian 只保存非重复的审计资料与边界。',
       '若确需写入：按 F:\\Obsidian\\Meta\\SCHEMA.md 记录 scope/source/evidence/date，并运行 validate 与 rebuild-index。',
       '缺少游戏实机或完整端到端验证只会限制 status 和结论边界，不会阻止保存已经由源码、构建或自动测试支持的候选；自动捕获默认使用 candidate。',
+      '新增时必须明确 source_kind 和 capture_method；旧内容无法可靠判断时保持 legacy-unspecified/legacy，不得从文件名或自由文本猜测可信来源。',
+      '原生记忆指纹变化且 reconcile 冲突的活跃笔记必须 fail closed；不得自动把 absent 改成 extends/corrects。valid_until 到期默认排除，review_after 到期只提示复核。',
       '只有本轮存在直接测试、运行时、日志、源码证据或用户明确确认，并且正文精确限定已验证层级时，才允许 status: verified；否则使用 current 或 candidate。',
       '若没有长期价值，只需作出“不写入”的判断并继续最终答复。不得保存秘密或完整聊天记录。',
     ].join(' '),
