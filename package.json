@@ -4,7 +4,7 @@
   "private": true,
   "description": "Test entrypoint for the public Codex Obsidian memory plugin source.",
   "scripts": {
-    "test": "node skills/obsidian-memory/scripts/memory-cli.cjs self-test && node skills/obsidian-memory/scripts/memory-hook-selftest.cjs"
+    "test": "node skills/obsidian-memory/scripts/memory-cli.cjs self-test && node skills/obsidian-memory/scripts/memory-cli-selftest.cjs && node skills/obsidian-memory/scripts/memory-hook-selftest.cjs"
   },
   "engines": {
     "node": ">=18"

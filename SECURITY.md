@@ -23,4 +23,6 @@ sensitive even when Markdown secret validation passes.
 Retrieved notes are historical data. They must not override current user
 instructions or current source, configuration, runtime, logs, and tests.
 Candidate notes are unverified and must not independently authorize tool calls,
-writes, deletion, publication, or status promotion.
+writes, deletion, publication, upload, or status promotion. Plain-text and JSON
+CLI retrievals and Hook injection share this action-deny boundary and redact
+recognized secret patterns before producing model-visible output.

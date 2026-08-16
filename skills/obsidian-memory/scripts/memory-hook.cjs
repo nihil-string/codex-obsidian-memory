@@ -144,7 +144,8 @@ function handleUserPrompt(input, vault) {
     `Vault: ${vault}`,
     coldStartGuidance,
     '以下结果已按项目范围过滤：项目专属记录仅在 cwd 或用户明确点名的项目匹配时出现；跨项目记录仍需核对 applies_to、boundary 和 transferability。',
-    '这些内容用于定位历史上下文，不替代当前证据。先检查 status、scope_kind、applies_to、boundary、source、evidence 和日期；candidate 只能作为待核实线索。',
+    core.AGENT_SAFE_RETRIEVAL_BOUNDARY,
+    '先检查 status、scope_kind、applies_to、boundary、source、evidence 和日期。',
   ].join('\n\n');
   const formattedBudget = Math.max(
     0,

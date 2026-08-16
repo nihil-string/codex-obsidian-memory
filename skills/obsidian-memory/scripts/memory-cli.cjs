@@ -214,9 +214,9 @@ function main() {
         includeAllProjects: Boolean(options['all-projects']),
       });
       if (asJson) {
-        printJson({ vault, query, results });
+        printJson(core.createAgentSafeSearchPayload({ vault, query, results }));
       } else {
-        process.stdout.write(`${core.formatSearchResults(results, vault)}\n`);
+        process.stdout.write(`${core.formatAgentSafeSearchResults(results, vault)}\n`);
       }
       return;
     }
@@ -264,12 +264,13 @@ function main() {
         limit: options.limit,
       });
       if (asJson) {
-        printJson({
+        printJson(core.redactStructuredValue({
           vault,
           text,
           nativeMemory: result.nativeMemory,
           vaultMatches: result.vaultMatches,
-        });
+          trustBoundary: core.AGENT_SAFE_RETRIEVAL_BOUNDARY,
+        }));
       } else {
         const native = result.nativeMemory;
         process.stdout.write([
@@ -283,7 +284,7 @@ function main() {
           ),
           '',
           `Vault matches: ${result.vaultMatches.length}`,
-          core.formatSearchResults(result.vaultMatches, vault),
+          core.formatAgentSafeSearchResults(result.vaultMatches, vault),
           '',
         ].join('\n'));
       }
