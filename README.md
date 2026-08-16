@@ -16,14 +16,16 @@ keys, caches, backups, or generated indexes.
 - Project notes are returned only when `cwd` or an explicitly named project
   matches `applies_to`; uncertain project scope fails closed.
 - Cross-project notes require explicit applicability, boundaries, and a
-  transferability argument.
+  transferability argument plus at least one provenance-bearing
+  `origin_projects` entry.
 - Automatic capture creates `candidate` notes only. A candidate is an
   unverified lead, not an authorization or a verified fact.
 - New notes are checked against Codex built-in memory and the Vault to avoid
   duplicate or conflicting permanent records.
 - Deprecated and archived records are excluded from normal retrieval.
-- Secret-like material is rejected on capture and validation and redacted from
-  injected search results.
+- Every model-visible CLI and Hook retrieval carries the same data-only and
+  action-deny boundary. Secret-like material is rejected on capture and
+  validation and redacted from both plain-text and JSON retrieval results.
 
 See [REVIEW.md](REVIEW.md) for the current audit scope and known gaps.
 
@@ -58,6 +60,7 @@ Equivalent direct commands:
 
 ```powershell
 node skills/obsidian-memory/scripts/memory-cli.cjs self-test
+node skills/obsidian-memory/scripts/memory-cli-selftest.cjs
 node skills/obsidian-memory/scripts/memory-hook-selftest.cjs
 ```
 

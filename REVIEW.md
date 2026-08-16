@@ -8,8 +8,10 @@ actual plugin implementation instead of relying on screenshots or summaries.
 1. Candidate trust boundary
    - Candidates participate in relevance ranking but carry a negative status
      weight and an explicit unverified label.
-   - Review whether retrieved excerpts need stronger data-only and action-gating
-     language and adversarial prompt-injection tests.
+   - CLI and Hook consumption paths now share a data-only/action-deny boundary,
+     plain and JSON results are redacted, and synthetic adversarial candidates
+     are covered by CLI and Hook regression tests. Review host-level behavior
+     separately because an offline formatter test cannot prove Agent obedience.
 2. Scope isolation
    - Inspect `scopeAllowsContext`, project path normalization, explicit project
      matching, cross-project thresholds, and archive handling.
@@ -24,9 +26,12 @@ actual plugin implementation instead of relying on screenshots or summaries.
    - `source` is currently free-form. Structured `source_kind` or
      `capture_method` and dynamically computed trust are open design questions.
 6. Secret handling
-   - Inspect pattern coverage, false positives, redaction, and validation before
-     adding provider-specific patterns.
-7. Host behavior
+   - Inspect pattern coverage, false positives, and structured-value redaction
+     before adding provider-specific patterns.
+7. Schema enforcement
+   - Cross-project capture and validation now require non-empty
+     `origin_projects`; review migrations before adding future required fields.
+8. Host behavior
    - Hook scripts and self-tests are present, but a previously tested Windows
      Codex Desktop build did not dispatch `UserPromptSubmit`. The explicit skill
      workflow remains the observed production fallback.
