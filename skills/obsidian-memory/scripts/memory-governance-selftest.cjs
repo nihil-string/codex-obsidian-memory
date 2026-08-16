@@ -274,11 +274,52 @@ function main() {
     const restored = backup.restoreTest({ snapshotPath: snapshot.snapshotPath, memoryRoot });
     assert(restored.ok && restored.isolated, 'isolated restore test failed');
 
+    const assertHardDeleteReferenceRefused = (message) => assertThrows(
+      () => backup.hardDeleteMemory({
+        vault,
+        memoryRoot,
+        backupRoot,
+        memoryId: 'governance-hard-delete',
+        reason: 'self-test privacy deletion',
+        confirm: 'governance-hard-delete',
+      }),
+      /durable notes still reference/,
+      message,
+    );
+
+    const titleReferencePath = path.join(vault, 'Inbox', 'hard-delete-title-reference.md');
+    core.writeUtf8Atomic(
+      titleReferencePath,
+      noteContent({
+        memoryId: 'governance-reference-probe-title',
+        projectRoot,
+        nativeFingerprint: core.builtInMemorySnapshot(memoryRoot).fingerprint,
+        title: 'Hard Delete Title Reference',
+        conclusion: 'This note retains [[Hard Delete Violet Contract]] as a title reference.',
+      }),
+    );
+    assertHardDeleteReferenceRefused('hard-delete did not refuse a title reference');
+    fs.unlinkSync(titleReferencePath);
+
+    const markdownReferencePath = path.join(vault, 'Inbox', 'hard-delete-markdown-reference.md');
+    core.writeUtf8Atomic(
+      markdownReferencePath,
+      noteContent({
+        memoryId: 'governance-reference-probe-markdown',
+        projectRoot,
+        nativeFingerprint: core.builtInMemorySnapshot(memoryRoot).fingerprint,
+        title: 'Hard Delete Markdown Reference',
+        conclusion: 'This note retains [the target](hard-delete.md) as a relative Markdown path reference.',
+      }),
+    );
+    assertHardDeleteReferenceRefused('hard-delete did not refuse a relative Markdown path reference');
+    fs.unlinkSync(markdownReferencePath);
+
     const aliasReferencePath = path.join(vault, 'Inbox', 'hard-delete-alias-reference.md');
     core.writeUtf8Atomic(
       aliasReferencePath,
       noteContent({
-        memoryId: 'governance-hard-delete-alias-reference',
+        memoryId: 'governance-reference-probe-alias',
         projectRoot,
         nativeFingerprint: core.builtInMemorySnapshot(memoryRoot).fingerprint,
         title: 'Hard Delete Alias Reference',
@@ -286,29 +327,9 @@ function main() {
       }),
     );
     const aliasReferenceSnapshot = backup.createBackup({ vault, memoryRoot, backupRoot });
-    assertThrows(
-      () => backup.hardDeleteMemory({
-        vault,
-        memoryRoot,
-        backupRoot,
-        memoryId: 'governance-hard-delete',
-        reason: 'self-test privacy deletion',
-        confirm: 'governance-hard-delete',
-      }),
-      /durable notes still reference/,
-      'hard-delete did not refuse an alias/block reference',
-    );
+    assertHardDeleteReferenceRefused('hard-delete did not refuse an alias/block reference');
     fs.unlinkSync(aliasReferencePath);
-    assertThrows(
-      () => backup.hardDeleteMemory({
-        vault,
-        memoryRoot,
-        backupRoot,
-        memoryId: 'governance-hard-delete',
-        reason: 'self-test privacy deletion',
-        confirm: 'governance-hard-delete',
-      }),
-      /durable notes still reference/,
+    assertHardDeleteReferenceRefused(
       'hard-delete did not refuse an alias/block reference retained by a managed backup',
     );
     assert(
@@ -366,7 +387,7 @@ function main() {
       expiredDefaultExcluded: true,
       reviewAfterLabelled: true,
       revokedDefaultExcluded: true,
-      hardDeleteAliasAndBackupReferencesRefused: true,
+      hardDeleteTitleAliasBlockMarkdownAndBackupReferencesRefused: true,
       hardDeleteDryRunAndBackupPurge: true,
       backupSymlinkOrJunctionRefused: true,
       isolatedRestoreVerified: true,
